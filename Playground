@@ -1,0 +1,291 @@
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- ==================== 小球 ====================
+local ballGui = Instance.new("ScreenGui")
+ballGui.Name = "小球界面"
+ballGui.ResetOnSpawn = false
+ballGui.Parent = playerGui
+
+local ball = Instance.new("TextButton")
+ball.Size = UDim2.new(0,50,0,50)
+ball.Position = UDim2.new(0.9,0,0.5,0)
+ball.BackgroundColor3 = Color3.fromRGB(0,150,255)
+ball.Text = ""
+ball.TextTransparency = 1
+ball.BorderSizePixel = 0
+ball.Parent = ballGui
+
+-- ==================== 完整 UI ====================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "基础界面"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+screenGui.Enabled = false
+
+local mainUI = Instance.new("Frame")
+mainUI.Size = UDim2.new(0,220,0,400)
+mainUI.Position = UDim2.new(0.4,0,0.3,0)
+mainUI.BackgroundColor3 = Color3.fromRGB(0,120,255)
+mainUI.BackgroundTransparency = 0.4
+mainUI.BorderSizePixel = 2
+mainUI.Parent = screenGui
+
+-- ---------- 小球点击显示UI ----------
+ball.MouseButton1Click:Connect(function()
+    screenGui.Enabled = not screenGui.Enabled
+end)
+
+-- ---------- UI关闭按钮 ----------
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0.15,0,0.1,0)
+closeBtn.Position = UDim2.new(0.85,0,0,0)
+closeBtn.Text = "X"
+closeBtn.TextScaled = true
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.Parent = mainUI
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui.Enabled = false
+end)
+
+-- ==================== UI控件辅助函数 ====================
+local function createToggle(name, default, y)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,0,0.08,0)
+    btn.Position = UDim2.new(0,0,y,0)
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.BackgroundColor3 = default and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
+    btn.Text = name..(default and " 开启" or " 关闭")
+    btn.Parent = mainUI
+    return btn
+end
+
+local yPos = 0.08
+local healToggle = createToggle("自动回血", false, yPos)
+yPos = yPos + 0.08
+local fallToggle = createToggle("无掉落伤害", false, yPos)
+yPos = yPos + 0.08
+local teleportModeToggle = createToggle("传送模式: 平滑", true, yPos)
+yPos = yPos + 0.08
+local returnButton = createToggle("返回原位", false, yPos)
+yPos = yPos + 0.08
+local multiHitToggle = createToggle("多次受伤回第一次位置", false, yPos)
+yPos = yPos + 0.08
+
+local function createLabelInput(labelText, defaultText, y)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.5,0,0.06,0)
+    lbl.Position = UDim2.new(0,0,y,0)
+    lbl.Text = labelText
+    lbl.TextScaled = true
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255,255,255)
+    lbl.Parent = mainUI
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(0.5,0,0.06,0)
+    input.Position = UDim2.new(0.5,0,y,0)
+    input.Text = defaultText
+    input.TextScaled = true
+    input.TextColor3 = Color3.fromRGB(255,255,255)
+    input.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    input.Parent = mainUI
+
+    return input
+end
+
+local healInput = createLabelInput("回血阀值:", "50", yPos)
+yPos = yPos + 0.06
+local stayInput = createLabelInput("停留时间(s):", "0", yPos)
+yPos = yPos + 0.06
+local multiHitThresholdInput = createLabelInput("循环阀值时间(s):", "10", yPos)
+yPos = yPos + 0.06
+local fallInput = createLabelInput("掉落伤害阀值:", "40", yPos)
+
+-- ==================== 拖动逻辑 ====================
+local function makeDraggable(frame)
+    local dragging, dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            local x = math.clamp(startPos.X.Offset + delta.X, 0, workspace.CurrentCamera.ViewportSize.X - frame.AbsoluteSize.X)
+            local y = math.clamp(startPos.Y.Offset + delta.Y, 0, workspace.CurrentCamera.ViewportSize.Y - frame.AbsoluteSize.Y)
+            frame.Position = UDim2.new(0, x, 0, y)
+        end
+    end)
+end
+
+makeDraggable(ball)
+makeDraggable(mainUI)
+
+-- ==================== 功能逻辑 ====================
+local autoHealEnabled = false
+local immuneFall = false
+local useTween = true
+local stopStay = false
+local multiHitReturnEnabled = false
+local firstHitCFrame = nil
+local loopStartTime = 0
+local healLocation = CFrame.new(732.193, 2390.157, 248.423)
+
+healToggle.MouseButton1Click:Connect(function()
+    autoHealEnabled = not autoHealEnabled
+    healToggle.Text = autoHealEnabled and "自动回血 开启" or "自动回血 关闭"
+    healToggle.BackgroundColor3 = autoHealEnabled and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
+end)
+
+fallToggle.MouseButton1Click:Connect(function()
+    immuneFall = not immuneFall
+    fallToggle.Text = immuneFall and "无掉落伤害 开启" or "无掉落伤害 关闭"
+    fallToggle.BackgroundColor3 = immuneFall and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
+end)
+
+teleportModeToggle.MouseButton1Click:Connect(function()
+    useTween = not useTween
+    teleportModeToggle.Text = useTween and "传送模式: 平滑" or "传送模式: 瞬移"
+end)
+
+returnButton.MouseButton1Click:Connect(function()
+    stopStay = true
+end)
+
+multiHitToggle.MouseButton1Click:Connect(function()
+    multiHitReturnEnabled = not multiHitReturnEnabled
+    multiHitToggle.Text = multiHitReturnEnabled and "多次受伤回第一次位置 开启" or "多次受伤回第一次位置 关闭"
+    multiHitToggle.BackgroundColor3 = multiHitReturnEnabled and Color3.fromRGB(0,150,0) or Color3.fromRGB(150,0,0)
+    if not multiHitReturnEnabled then
+        firstHitCFrame = nil
+        loopStartTime = 0
+    end
+end)
+
+local function doHeal(root, hum)
+    stopStay = false
+    local originalCFrame = multiHitReturnEnabled and (firstHitCFrame or root.CFrame) or root.CFrame
+    local tweenTime = 0.3
+    local raiseHeight = 3
+    local returnHeight = 1
+    local stayTime = tonumber(stayInput.Text) or 0
+
+    -- 判断循环阀值时间
+    local thresholdTime = tonumber(multiHitThresholdInput.Text) or 10
+    if multiHitReturnEnabled then
+        if not firstHitCFrame then
+            firstHitCFrame = root.CFrame
+            loopStartTime = os.clock()
+        elseif os.clock() - loopStartTime > thresholdTime then
+            firstHitCFrame = root.CFrame
+            loopStartTime = os.clock()
+        end
+    end
+
+    local parts = {}
+    for _, part in pairs(root.Parent:GetChildren()) do
+        if part:IsA("BasePart") then
+            parts[#parts+1] = part
+            part.CanCollide = false
+        end
+    end
+
+    root.CFrame = root.CFrame + Vector3.new(0, raiseHeight, 0)
+    task.wait(0.05)
+
+    if useTween then
+        local goal = {CFrame = healLocation + Vector3.new(0, raiseHeight, 0)}
+        local tween = TweenService:Create(root, TweenInfo.new(tweenTime), goal)
+        tween:Play()
+        tween.Completed:Wait()
+    else
+        root.CFrame = healLocation + Vector3.new(0, raiseHeight, 0)
+    end
+
+    hum.Health = hum.MaxHealth
+
+    if stayTime > 0 then
+        local t = 0
+        while t < stayTime and not stopStay do
+            task.wait(0.1)
+            t = t + 0.1
+        end
+    end
+
+    if useTween then
+        local returnGoal = {CFrame = originalCFrame + Vector3.new(0, returnHeight, 0)}
+        local returnTween = TweenService:Create(root, TweenInfo.new(tweenTime), returnGoal)
+        returnTween:Play()
+        returnTween.Completed:Wait()
+    else
+        root.CFrame = originalCFrame
+    end
+
+    for _, part in pairs(parts) do
+        part.CanCollide = true
+    end
+end
+
+local function autoHeal()
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+
+    hum:GetPropertyChangedSignal("Health"):Connect(function()
+        if autoHealEnabled or multiHitReturnEnabled then
+            local threshold = tonumber(healInput.Text)
+            if threshold and hum.Health < threshold then
+                pcall(doHeal, root, hum)
+            end
+        end
+    end)
+end
+
+local function protectFall()
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    hum:GetPropertyChangedSignal("Health"):Connect(function()
+        if immuneFall then
+            local fallThreshold = tonumber(fallInput.Text)
+            if fallThreshold and hum.Health < fallThreshold then
+                hum.Health = hum.MaxHealth
+            end
+        end
+    end)
+end
+
+player.CharacterAdded:Connect(function(char)
+    task.wait(1)
+    firstHitCFrame = nil
+    loopStartTime = 0
+    task.spawn(autoHeal)
+    protectFall()
+end)
+
+if player.Character then
+    task.spawn(autoHeal)
+    protectFall()
+end
