@@ -1,0 +1,2489 @@
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+WindUI:Localization({
+    Enabled = true,
+    Prefix = "loc:",
+    DefaultLanguage = "zh-cn",
+    Translations = {
+        ["ru"] = {
+            ["WINDUI_EXAMPLE"] = "WindUI Пример",
+            ["WELCOME"] = "Добро пожаловать в WindUI!",
+            ["LIB_DESC"] = "Библиотека для создания красивых интерфейсов",
+            ["SETTINGS"] = "Настройки",
+            ["APPEARANCE"] = "Внешний вид",
+            ["FEATURES"] = "Функционал",
+            ["UTILITIES"] = "Инструменты",
+            ["UI_ELEMENTS"] = "UI Элементы",
+            ["CONFIGURATION"] = "Конфигурация",
+            ["SAVE_CONFIG"] = "Сохранить конфигурацию",
+            ["LOAD_CONFIG"] = "Загрузить конфигурацию",
+            ["THEME_SELECT"] = "Выберите тему",
+            ["TRANSPARENCY"] = "Прозрачность окна"
+        },
+        ["en"] = {
+            ["WINDUI_EXAMPLE"] = "WindUI Example",
+            ["WELCOME"] = "Welcome to WindUI!",
+            ["LIB_DESC"] = "Beautiful UI library for Roblox",
+            ["SETTINGS"] = "Settings",
+            ["APPEARANCE"] = "Appearance",
+            ["FEATURES"] = "Features",
+            ["UTILITIES"] = "Utilities",
+            ["UI_ELEMENTS"] = "UI Elements",
+            ["CONFIGURATION"] = "Configuration",
+            ["SAVE_CONFIG"] = "Save Configuration",
+            ["LOAD_CONFIG"] = "Load Configuration",
+            ["THEME_SELECT"] = "Select Theme",
+            ["TRANSPARENCY"] = "Window Transparency"
+        },
+        ["zh-cn"] = {
+            ["WINDUI_EXAMPLE"] = "WindUI 示例",
+            ["WELCOME"] = "欢迎使用 WindUI！",
+            ["LIB_DESC"] = "为 Roblox 设计的精美 UI 库",
+            ["SETTINGS"] = "设置",
+            ["APPEARANCE"] = "外观",
+            ["FEATURES"] = "功能",
+            ["UTILITIES"] = "工具",
+            ["UI_ELEMENTS"] = "UI 元素",
+            ["CONFIGURATION"] = "配置",
+            ["SAVE_CONFIG"] = "保存配置",
+            ["LOAD_CONFIG"] = "加载配置",
+            ["THEME_SELECT"] = "选择主题",
+            ["TRANSPARENCY"] = "窗口透明度"
+        }
+    }
+})
+
+WindUI.TransparencyValue = 0.2
+WindUI:SetTheme("Indigo")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local lp = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local pgui = lp:WaitForChild("PlayerGui")
+
+local bv_orig, bg_orig, animCache_orig
+local hrp_orig, hum_orig
+local isFlying_orig = false
+local flySpeed_orig = 40
+local ControlModule = require(lp.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
+
+local function clearFlyRes_orig()
+    if animCache_orig and lp.Character then animCache_orig.Parent = lp.Character end
+    if bv_orig then bv_orig:Destroy() end
+    if bg_orig then bg_orig:Destroy() end
+    bv_orig, bg_orig = nil, nil
+    if hum_orig and hum_orig.Parent then hum_orig:ChangeState(Enum.HumanoidStateType.Running) end
+end
+
+local function ensurePhysics_orig(hrp, useGyro)
+    if hrp:FindFirstChild("LeipzigBV_orig") then hrp.LeipzigBV_orig:Destroy() end
+    if hrp:FindFirstChild("LeipzigBG_orig") then hrp.LeipzigBG_orig:Destroy() end
+    bv_orig = Instance.new("BodyVelocity", hrp)
+    bv_orig.Name = "LeipzigBV_orig"
+    bv_orig.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    if useGyro then
+        bg_orig = Instance.new("BodyGyro", hrp)
+        bg_orig.Name = "LeipzigBG_orig"
+        bg_orig.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bg_orig.P = 10000
+        bg_orig.D = 50
+    end
+end
+
+local function startFlyNormal_orig()
+    local char = lp.Character
+    if not char then return end
+    hrp_orig = char:WaitForChild("HumanoidRootPart")
+    hum_orig = char:WaitForChild("Humanoid")
+    local ani = char:FindFirstChild("Animate")
+    if ani then animCache_orig = ani; ani.Parent = nil end
+    ensurePhysics_orig(hrp_orig, true)
+    task.spawn(function()
+        while isFlying_orig and char.Parent do
+            local mv = ControlModule:GetMoveVector()
+            local cf = camera.CFrame
+            local dir = (cf.LookVector * -mv.Z) + (cf.RightVector * mv.X)
+
+            if mv.Magnitude > 0 then
+                bv_orig.Velocity = dir.Unit * flySpeed_orig
+                local lookDir = dir.Unit
+                bg_orig.CFrame = CFrame.lookAt(hrp_orig.Position, hrp_orig.Position + lookDir)
+            else
+                bv_orig.Velocity = Vector3.new(0,0.01,0)
+            end
+            hum_orig:ChangeState(Enum.HumanoidStateType.Climbing)
+            RunService.RenderStepped:Wait()
+        end
+        clearFlyRes_orig()
+    end)
+end
+
+local function startFly_orig()
+    if isFlying_orig then return end
+    isFlying_orig = true
+    startFlyNormal_orig()
+end
+
+local function stopFly_orig()
+    if not isFlying_orig then return end
+    isFlying_orig = false
+    clearFlyRes_orig()
+end
+
+local function bindCharacter_orig()
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    hrp_orig = char:WaitForChild("HumanoidRootPart")
+    hum_orig = char:WaitForChild("Humanoid")
+    clearFlyRes_orig()
+    char.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            clearFlyRes_orig()
+            bindCharacter_orig()
+        end
+    end)
+end
+bindCharacter_orig()
+
+local bv_new, bg_new, animCache_new
+local hrp_new, hum_new
+local isFlying_new = false
+local flySpeed_new = 40
+local isWallhack_new = false
+local flyTurner_new = nil
+local originalCollisions_new = {}
+
+local function getBodyParts(character)
+    local parts = {}
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        local success, rigParts = pcall(function() return humanoid:GetRigParts() end)
+        if success and rigParts then
+            for _, part in ipairs(rigParts) do
+                if part:IsA("BasePart") then
+                    table.insert(parts, part)
+                end
+            end
+        end
+    end
+    if #parts == 0 then
+        local bodyNames = {"Head", "Torso", "UpperTorso", "LowerTorso", "HumanoidRootPart",
+                           "Left Arm", "Right Arm", "Left Leg", "Right Leg",
+                           "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm",
+                           "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg"}
+        for _, name in ipairs(bodyNames) do
+            local part = character:FindFirstChild(name)
+            if part and part:IsA("BasePart") then
+                table.insert(parts, part)
+            end
+        end
+    end
+    return parts
+end
+
+local SmoothTurner = {}
+SmoothTurner.__index = SmoothTurner
+
+function SmoothTurner.new(rootPart, camera, options)
+    options = options or {}
+    local self = setmetatable({}, SmoothTurner)
+    self.RootPart = rootPart
+    self.Camera = camera or workspace.CurrentCamera
+    self.Enabled = false
+    self.BodyGyro = nil
+    self.P = options.P or 10000
+    self.D = options.D or 50
+    self.MaxTorque = options.MaxTorque or Vector3.new(math.huge, math.huge, math.huge)
+    return self
+end
+
+function SmoothTurner:Start()
+    if self.Enabled then return end
+    if not self.RootPart or not self.RootPart.Parent then return end
+    local gyro = Instance.new("BodyGyro")
+    gyro.MaxTorque = self.MaxTorque
+    gyro.P = self.P
+    gyro.D = self.D
+    gyro.CFrame = self.RootPart.CFrame
+    gyro.Parent = self.RootPart
+    self.BodyGyro = gyro
+    self.Enabled = true
+    self:_startHeartbeat()
+end
+
+function SmoothTurner:Stop()
+    if self.BodyGyro then
+        self.BodyGyro:Destroy()
+        self.BodyGyro = nil
+    end
+    self.Enabled = false
+    if self.HeartbeatConn then
+        self.HeartbeatConn:Disconnect()
+        self.HeartbeatConn = nil
+    end
+end
+
+function SmoothTurner:SetDirection(direction)
+    if not self.Enabled or not self.BodyGyro or not self.RootPart then return end
+    local newCFrame = CFrame.lookAt(self.RootPart.Position, self.RootPart.Position + direction.Unit)
+    self.BodyGyro.CFrame = newCFrame
+end
+
+function SmoothTurner:_startHeartbeat()
+    if self.HeartbeatConn then self.HeartbeatConn:Disconnect() end
+    self.HeartbeatConn = RunService.Heartbeat:Connect(function()
+        if not self.Enabled or not self.BodyGyro or not self.RootPart or not self.Camera then return end
+        local look = self.Camera.CFrame.LookVector
+        self:SetDirection(look)
+    end)
+end
+
+function SmoothTurner:Destroy()
+    self:Stop()
+    self.RootPart = nil
+    self.Camera = nil
+end
+
+local function clearFlyRes_new()
+    local char = lp.Character
+    if char then
+        local bodyParts = getBodyParts(char)
+        for part, originalState in pairs(originalCollisions_new) do
+            if part and part.Parent then
+                for _, bp in ipairs(bodyParts) do
+                    if bp == part then
+                        part.CanCollide = originalState
+                        break
+                    end
+                end
+            end
+        end
+        originalCollisions_new = {}
+    end
+    if animCache_new and lp.Character then animCache_new.Parent = lp.Character end
+    if bv_new then bv_new:Destroy() end
+    if bg_new then bg_new:Destroy() end
+    bv_new, bg_new = nil, nil
+    if flyTurner_new then flyTurner_new:Destroy(); flyTurner_new = nil end
+    if hum_new and hum_new.Parent then hum_new:ChangeState(Enum.HumanoidStateType.Running) end
+end
+
+local function ensurePhysics_new(hrp, useGyro)
+    if hrp:FindFirstChild("LeipzigBV_new") then hrp.LeipzigBV_new:Destroy() end
+    if hrp:FindFirstChild("LeipzigBG_new") then hrp.LeipzigBG_new:Destroy() end
+    bv_new = Instance.new("BodyVelocity", hrp)
+    bv_new.Name = "LeipzigBV_new"
+    bv_new.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    if useGyro then
+        if flyTurner_new then flyTurner_new:Destroy() end
+        flyTurner_new = SmoothTurner.new(hrp, workspace.CurrentCamera)
+        flyTurner_new:Start()
+    end
+end
+
+local function applyWallhackState_new()
+    local char = lp.Character
+    if not char then return end
+    if isWallhack_new then
+        local bodyParts = getBodyParts(char)
+        originalCollisions_new = {}
+        for _, part in ipairs(bodyParts) do
+            originalCollisions_new[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    else
+        for part, originalState in pairs(originalCollisions_new) do
+            if part and part.Parent then
+                part.CanCollide = originalState
+            end
+        end
+        originalCollisions_new = {}
+    end
+end
+
+local function startFlyNormal_new()
+    local char = lp.Character
+    if not char then return end
+    hrp_new = char:WaitForChild("HumanoidRootPart")
+    hum_new = char:WaitForChild("Humanoid")
+    local ani = char:FindFirstChild("Animate")
+    if ani then animCache_new = ani; ani.Parent = nil end
+    ensurePhysics_new(hrp_new, true)
+    task.spawn(function()
+        while isFlying_new and char.Parent do
+            local mv = ControlModule:GetMoveVector()
+            local cf = camera.CFrame
+            local dir = (cf.LookVector * -mv.Z) + (cf.RightVector * mv.X)
+            if mv.Magnitude > 0 then
+                bv_new.Velocity = dir.Unit * flySpeed_new
+            else
+                bv_new.Velocity = Vector3.new(0,0.01,0)
+            end
+            hum_new:ChangeState(Enum.HumanoidStateType.Climbing)
+            RunService.RenderStepped:Wait()
+        end
+        clearFlyRes_new()
+    end)
+end
+
+local function startFlyWallhack_new()
+    local char = lp.Character
+    if not char then return end
+    hrp_new = char:WaitForChild("HumanoidRootPart")
+    hum_new = char:WaitForChild("Humanoid")
+    local ani = char:FindFirstChild("Animate")
+    if ani then animCache_new = ani; ani.Parent = nil end
+    applyWallhackState_new()
+    ensurePhysics_new(hrp_new, true)
+    task.spawn(function()
+        local lastPos = hrp_new.Position
+        local lastTime = tick()
+        while isFlying_new and char.Parent do
+            local dt = tick() - lastTime
+            lastTime = tick()
+            local mv = ControlModule:GetMoveVector()
+            local cf = camera.CFrame
+            local dir = (cf.LookVector * -mv.Z) + (cf.RightVector * mv.X)
+            local targetVelocity
+            if mv.Magnitude > 0 then
+                targetVelocity = dir.Unit * flySpeed_new
+                bv_new.Velocity = targetVelocity
+            else
+                bv_new.Velocity = Vector3.new(0,0.01,0)
+                targetVelocity = Vector3.new(0,0.01,0)
+            end
+            hum_new:ChangeState(Enum.HumanoidStateType.Climbing)
+            RunService.RenderStepped:Wait()
+            local expectedPos = lastPos + targetVelocity * dt
+            local actualPos = hrp_new.Position
+            local deviation = actualPos - expectedPos
+            if deviation.Magnitude > 0.00001 then
+                hrp_new.CFrame = CFrame.new(expectedPos) * hrp_new.CFrame.Rotation
+                bv_new.Velocity = targetVelocity
+                lastPos = expectedPos
+            else
+                lastPos = actualPos
+            end
+        end
+        clearFlyRes_new()
+    end)
+end
+
+local function startFly_new()
+    if isFlying_new then return end
+    isFlying_new = true
+    if isWallhack_new then
+        startFlyWallhack_new()
+    else
+        startFlyNormal_new()
+    end
+end
+
+local function stopFly_new()
+    if not isFlying_new then return end
+    isFlying_new = false
+    clearFlyRes_new()
+end
+
+local function bindCharacter_new()
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    hrp_new = char:WaitForChild("HumanoidRootPart")
+    hum_new = char:WaitForChild("Humanoid")
+    clearFlyRes_new()
+    char.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            clearFlyRes_new()
+            bindCharacter_new()
+        end
+    end)
+end
+bindCharacter_new()
+
+local function gradient(text, startColor, endColor)
+    local result = ""
+    for i = 1, #text do
+        local t = (i - 1) / (#text - 1)
+        local r = math.floor((startColor.R + (endColor.R - startColor.R) * t) * 255)
+        local g = math.floor((startColor.G + (endColor.G - startColor.G) * t) * 255)
+        local b = math.floor((startColor.B + (endColor.B - startColor.B) * t) * 255)
+        result = result .. string.format('<font color="rgb(%d,%d,%d)">%s</font>', r, g, b, text:sub(i, i))
+    end
+    return result
+end
+
+WindUI:Popup({
+    Title = gradient("WindUI 演示", Color3.fromHex("#6A11CB"), Color3.fromHex("#2575FC")),
+    Icon = "sparkles",
+    Content = "loc:LIB_DESC",
+    Buttons = {
+        {
+            Title = "开始使用",
+            Icon = "arrow-right",
+            Variant = "Primary",
+            Callback = function() end
+        }
+    }
+})
+
+local Window = WindUI:CreateWindow({
+    Title = "Skin┃GBv3.2",
+    Icon = "palette",
+    Author = "柳叶精品😝",
+    Folder = "WindUI_Example",
+    Size = UDim2.fromOffset(650, 450),
+    Theme = "Indigo",
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function()
+            WindUI:Notify({
+                Title = "用户资料",
+                Content = "用户头像被点击！",
+                Duration = 3
+            })
+        end
+    },
+    SideBarWidth = 220,
+    ScrollBarEnabled = true
+})
+
+Window:Tag({
+    Title = "v1.6.4",
+    Color = Color3.fromHex("#30ff6a")
+})
+
+Window:CreateTopbarButton("theme-switcher", "moon", function()
+    WindUI:SetTheme(WindUI:GetCurrentTheme() == "Indigo" and "Dark" or "Indigo")
+    WindUI:Notify({
+        Title = "主题已更改",
+        Content = "当前主题："..WindUI:GetCurrentTheme(),
+        Duration = 2
+    })
+end, 990)
+
+local FeatureSection = Window:Section({ Title = "功能", Opened = true })
+local MainTab = FeatureSection:Tab({ Title = "主要", Icon = "zap" })
+
+local jumpHeight = 60
+local cooldown = 0.6
+local lastJump = 0
+local jumpModEnabled = false
+
+UserInputService.JumpRequest:Connect(function()
+    if not jumpModEnabled then return end
+    local char = lp.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if hum and root and tick() - lastJump >= cooldown then
+        lastJump = tick()
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        root.Velocity = Vector3.new(root.Velocity.X, jumpHeight, root.Velocity.Z)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if not jumpModEnabled then return end
+    local char = lp.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if hum and root then
+        local userStates = lp:FindFirstChild("UserStates")
+        if userStates then
+            for _, s in pairs({"BrokenLegs", "Grabbed", "Pin"}) do
+                if userStates:FindFirstChild(s) then userStates[s].Value = false end
+            end
+        end
+        local animate = char:FindFirstChild("Animate")
+        if animate then animate.Parent = nil end
+        if root.Velocity.Y < -5 and not UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            hum:ChangeState(Enum.HumanoidStateType.Climbing)
+        end
+    end
+end)
+
+local antiFallEnabled = false
+local antiFallConnection = nil
+local fallStartY = nil
+local FALL_DISTANCE_THRESHOLD = 15
+local ANTI_FALL_JUMP_HEIGHT = 25
+
+local function startAntiFall()
+    if antiFallConnection then antiFallConnection:Disconnect() end
+    antiFallConnection = RunService.Heartbeat:Connect(function()
+        if not antiFallEnabled then return end
+        local char = lp.Character
+        if not char then fallStartY = nil; return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not root or not humanoid then return end
+        local currentY = root.Position.Y
+        local velocityY = root.Velocity.Y
+        if velocityY < -0.1 then
+            if not fallStartY then
+                fallStartY = currentY
+            else
+                local fallDistance = fallStartY - currentY
+                if fallDistance >= FALL_DISTANCE_THRESHOLD then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                    root.Velocity = Vector3.new(root.Velocity.X, ANTI_FALL_JUMP_HEIGHT, root.Velocity.Z)
+                    fallStartY = nil
+                end
+            end
+        else
+            fallStartY = nil
+        end
+    end)
+end
+
+local function stopAntiFall()
+    if antiFallConnection then antiFallConnection:Disconnect() end
+    antiFallConnection = nil
+    fallStartY = nil
+end
+
+lp.CharacterAdded:Connect(function()
+    stopAntiFall()
+    fallStartY = nil
+end)
+
+local playerSpeed = 16
+local speedEnabled = true
+local function updateWalkSpeed()
+    if not speedEnabled then
+        if lp.Character and lp.Character:FindFirstChild("Humanoid") then
+            lp.Character.Humanoid.WalkSpeed = 16
+        end
+        return
+    end
+    if lp.Character and lp.Character:FindFirstChild("Humanoid") then
+        lp.Character.Humanoid.WalkSpeed = playerSpeed
+    end
+end
+
+MainTab:Toggle({
+    Title = "启用速度调整",
+    Desc = "开启后速度滑块生效，关闭则恢复默认速度",
+    Value = true,
+    Callback = function(state)
+        speedEnabled = state
+        if not state then
+            if lp.Character and lp.Character:FindFirstChild("Humanoid") then
+                lp.Character.Humanoid.WalkSpeed = 16
+            end
+        else
+            updateWalkSpeed()
+        end
+    end
+})
+
+MainTab:Slider({
+    Title = "玩家速度",
+    Desc = "调整移动速度",
+    Value = { Min = 16, Max = 45, Default = 16 },
+    Callback = function(value)
+        playerSpeed = value
+        if speedEnabled then
+            updateWalkSpeed()
+        end
+    end
+})
+MainTab:Divider()
+
+local autoFaceEnabled = false
+local autoFaceRange = 17
+local skipBarrel = false
+local autoFaceConnection = nil
+
+local function getNearestZombieInRange()
+    local char = lp.Character
+    if not char then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local playerPos = root.Position
+
+    local nearest = nil
+    local nearestDist = math.huge
+    local zombiesFolder = workspace:FindFirstChild("Zombies")
+    if zombiesFolder then
+        for _, zombie in pairs(zombiesFolder:GetChildren()) do
+            if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+                if skipBarrel and zombie:GetAttribute("Type") == "Barrel" then
+                    continue
+                end
+                local state = zombie:FindFirstChild("State")
+                if state and state.Value == "Spawn" then
+                    continue
+                end
+                local targetRoot = zombie.HumanoidRootPart
+                local dist = (targetRoot.Position - playerPos).Magnitude
+                if dist <= autoFaceRange and dist < nearestDist then
+                    nearestDist = dist
+                    nearest = zombie
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+local function faceZombie(zombie)
+    if not zombie or not zombie:FindFirstChild("HumanoidRootPart") then return end
+    local char = lp.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local wasAutoRotate = humanoid.AutoRotate
+    humanoid.AutoRotate = false
+
+    local targetPos = zombie.HumanoidRootPart.Position
+    local lookAtPos = Vector3.new(targetPos.X, root.Position.Y, targetPos.Z)
+    root.CFrame = CFrame.lookAt(root.Position, lookAtPos)
+
+    humanoid.AutoRotate = wasAutoRotate
+end
+
+local function autoFaceLoop()
+    while autoFaceEnabled do
+        local target = getNearestZombieInRange()
+        if target then
+            faceZombie(target)
+        end
+        task.wait(0.1)
+    end
+end
+
+local function startAutoFace()
+    if autoFaceConnection then
+        task.cancel(autoFaceConnection)
+        autoFaceConnection = nil
+    end
+    if autoFaceEnabled then
+        autoFaceConnection = task.spawn(autoFaceLoop)
+    end
+end
+
+local function stopAutoFace()
+    if autoFaceConnection then
+        task.cancel(autoFaceConnection)
+        autoFaceConnection = nil
+    end
+end
+
+lp.CharacterAdded:Connect(function()
+    if autoFaceEnabled then
+        stopAutoFace()
+        startAutoFace()
+    end
+end)
+
+MainTab:Slider({
+    Title = "自动转向范围",
+    Desc = "僵尸进入距离时自动转向",
+    Value = { Min = 5, Max = 30, Default = 17 },
+    Callback = function(value)
+        autoFaceRange = value
+    end
+})
+
+MainTab:Toggle({
+    Title = "自动转向",
+    Desc = "自动面向范围内的僵尸",
+    Value = false,
+    Callback = function(state)
+        autoFaceEnabled = state
+        if state then
+            startAutoFace()
+        else
+            stopAutoFace()
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "跳过自爆僵尸",
+    Desc = "开启后不会转向自爆",
+    Value = false,
+    Callback = function(state)
+        skipBarrel = state
+    end
+})
+
+MainTab:Divider()
+
+MainTab:Toggle({
+    Title = "无限连跳",
+    Desc = "无限跳跃，无视骨折",
+    Value = false,
+    Callback = function(state)
+        jumpModEnabled = state
+        antiFallEnabled = state
+        if state then startAntiFall() else stopAntiFall() end
+        WindUI:Notify({ Title = "无限连跳", Content = state and "已开启（含防骨折）" or "已关闭", Duration = 2 })
+    end
+})
+
+MainTab:Slider({
+    Title = "跳跃高度",
+    Desc = "调节跳跃高度 (30-90)",
+    Value = { Min = 30, Max = 90, Default = 60 },
+    Callback = function(value) jumpHeight = value end
+})
+
+MainTab:Divider()
+
+local minorFeatures = {}
+minorFeatures.noSlow = { active = false, walkSpeedConn = nil, charAddedConn = nil }
+local function setupNoSlow()
+    if not lp.Character then return end
+    local humanoid = lp.Character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if minorFeatures.noSlow.walkSpeedConn then minorFeatures.noSlow.walkSpeedConn:Disconnect() end
+    minorFeatures.noSlow.walkSpeedConn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if minorFeatures.noSlow.active and humanoid.WalkSpeed < 16 then
+            humanoid.WalkSpeed = 16
+        end
+    end)
+    if minorFeatures.noSlow.active and humanoid.WalkSpeed < 16 then
+        humanoid.WalkSpeed = 16
+    end
+end
+MainTab:Toggle({
+    Title = "无减速",
+    Desc = "移除减速效果（重生后需重新开启）",
+    Value = false,
+    Callback = function(state)
+        minorFeatures.noSlow.active = state
+        if state then
+            setupNoSlow()
+            minorFeatures.noSlow.charAddedConn = lp.CharacterAdded:Connect(function()
+                task.wait(1); setupNoSlow()
+            end)
+        else
+            if minorFeatures.noSlow.walkSpeedConn then minorFeatures.noSlow.walkSpeedConn:Disconnect() end
+            if minorFeatures.noSlow.charAddedConn then minorFeatures.noSlow.charAddedConn:Disconnect() end
+        end
+    end
+})
+minorFeatures.noFall = { active = false, connection = nil }
+local function preventFallDamage()
+    while minorFeatures.noFall.active do
+        if not lp.Character then task.wait(1) continue end
+        local health = lp.Character:FindFirstChild("Health")
+        if health then
+            local forceSelfDamage = health:FindFirstChild("ForceSelfDamage")
+            if forceSelfDamage then forceSelfDamage:FireServer(0) end
+        end
+        task.wait(1)
+    end
+end
+MainTab:Toggle({
+    Title = "移除摔伤",
+    Desc = "移除摔落伤害（注意不防骨折）",
+    Value = false,
+    Callback = function(state)
+        minorFeatures.noFall.active = state
+        if state then
+            minorFeatures.noFall.connection = task.spawn(preventFallDamage)
+        else
+            if minorFeatures.noFall.connection then task.cancel(minorFeatures.noFall.connection) end
+        end
+    end
+})
+
+local backpackToggleConn = nil
+MainTab:Toggle({
+    Title = "显示物品栏",
+    Desc = "强制显示物品栏",
+    Value = false,
+    Callback = function(state)
+        if state then
+            local backpackGui = lp:WaitForChild("PlayerGui"):WaitForChild("BackpackGui")
+            backpackGui.Enabled = true
+            backpackToggleConn = backpackGui:GetPropertyChangedSignal("Enabled"):Connect(function()
+                if not backpackGui.Enabled then
+                    backpackGui.Enabled = true
+                end
+            end)
+        else
+            if backpackToggleConn then backpackToggleConn:Disconnect() end
+        end
+    end
+})
+
+local originalLighting = nil
+local brightEnabled = false
+MainTab:Toggle({
+    Title = "亮度提升",
+    Desc = "提高场景亮度",
+    Value = false,
+    Callback = function(state)
+        local lighting = game:GetService("Lighting")
+        if state then
+            if not originalLighting then
+                originalLighting = {
+                    ClockTime = lighting.ClockTime,
+                    Ambient = lighting.Ambient,
+                    GlobalShadows = lighting.GlobalShadows,
+                    OutdoorAmbient = lighting.OutdoorAmbient
+                }
+            end
+            lighting.ClockTime = 14
+            lighting.Ambient = Color3.fromRGB(255,255,255)
+            lighting.GlobalShadows = false
+            lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
+            brightEnabled = true
+        else
+            if originalLighting then
+                lighting.ClockTime = originalLighting.ClockTime
+                lighting.Ambient = originalLighting.Ambient
+                lighting.GlobalShadows = originalLighting.GlobalShadows
+                lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
+            end
+            brightEnabled = false
+        end
+    end
+})
+
+MainTab:Divider()
+
+local autoDoorEnabled = false
+local processingDoors = {}
+local autoDoorThread = nil
+local function autoDoorLoop()
+    while autoDoorEnabled do
+        local char = lp.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item.Name == "Main" and item:IsA("Model") then
+                    if (root.Position - item:GetModelCFrame().Position).Magnitude <= 23 then
+                        local isOpen = item:GetAttribute("Open")
+                        if isOpen == nil then pcall(function() isOpen = item.Open end) end
+                        if isOpen == false then
+                            local mainPart = item:FindFirstChild("Main")
+                            local remote = mainPart and mainPart:FindFirstChild("Interact")
+                            if remote and remote:IsA("RemoteEvent") and not processingDoors[item] then
+                                processingDoors[item] = true
+                                task.spawn(function()
+                                    remote:FireServer()
+                                    task.wait(0.5)
+                                    processingDoors[item] = nil
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+local AutoTab = FeatureSection:Tab({ Title = "自动功能", Icon = "zap" })
+local autoFeatures = {}
+
+autoFeatures.autoDig = { active = false, connection = nil }
+local DIGGABLE_PATHS = {
+    "Vardohus Fortress/Modes/Objective/DoorSnow/Diggable",
+    "Vardohus Fortress/Modes/Objective/Diggable",
+    "OLD Vardohus Fortress/Modes/Objective/DigSnow/Diggable"
+}
+local function getDiggingTool()
+    local char = lp.Character
+    if not char then return nil end
+    for _, tool in pairs(char:GetChildren()) do
+        if (tool.Name == "Shovel" or tool.Name == "Spade") and tool:FindFirstChild("RemoteEvent") then return tool end
+    end
+    for _, tool in pairs(lp.Backpack:GetChildren()) do
+        if (tool.Name == "Shovel" or tool.Name == "Spade") and tool:FindFirstChild("RemoteEvent") then return tool end
+    end
+    return nil
+end
+local function findValidDiggable()
+    for _, path in ipairs(DIGGABLE_PATHS) do
+        local parts = path:split("/")
+        local current = workspace
+        for _, partName in ipairs(parts) do
+            current = current:FindFirstChild(partName)
+            if not current then break end
+        end
+        if current then return current end
+    end
+    return nil
+end
+local function executeDig()
+    if not autoFeatures.autoDig.active then return end
+    local diggable = findValidDiggable()
+    if not diggable then return end
+    local tool = getDiggingTool()
+    if not tool then return end
+    if tool.Parent ~= lp.Character then tool.Parent = lp.Character; task.wait(0.2) end
+    local remoteEvent = tool:FindFirstChild("RemoteEvent")
+    if remoteEvent then remoteEvent:FireServer("Dig", diggable, diggable.Position) end
+end
+local function autoDigLoop()
+    while autoFeatures.autoDig.active do
+        executeDig()
+        task.wait(0.05)
+    end
+end
+AutoTab:Toggle({
+    Title = "自动挖雪",
+    Desc = "自动挖掘雪堆",
+    Value = false,
+    Callback = function(state)
+        autoFeatures.autoDig.active = state
+        if state then autoFeatures.autoDig.connection = task.spawn(autoDigLoop)
+        else if autoFeatures.autoDig.connection then task.cancel(autoFeatures.autoDig.connection) end end
+    end
+})
+
+autoFeatures.autoLog = { active = false, connection = nil }
+AutoTab:Toggle({
+    Title = "自动拿木头",
+    Desc = "自动拿木头",
+    Value = false,
+    Callback = function(state)
+        autoFeatures.autoLog.active = state
+        if state then
+            autoFeatures.autoLog.connection = task.spawn(function()
+                while autoFeatures.autoLog.active do
+                    local remoteEvent = workspace:FindFirstChild("Berezina") and workspace.Berezina:FindFirstChild("Modes") and workspace.Berezina.Modes:FindFirstChild("Holdout") and workspace.Berezina.Modes.Holdout:FindFirstChild("Log") and workspace.Berezina.Modes.Holdout.Log:FindFirstChild("Log") and workspace.Berezina.Modes.Holdout.Log.Log:FindFirstChild("Interact")
+                    if remoteEvent and remoteEvent:IsA("RemoteEvent") then pcall(function() remoteEvent:FireServer() end) end
+                    task.wait(0.05)
+                end
+            end)
+        else
+            if autoFeatures.autoLog.connection then task.cancel(autoFeatures.autoLog.connection) end
+        end
+    end
+})
+
+autoFeatures.autoPlace = { active = false, connection = nil }
+AutoTab:Toggle({
+    Title = "自动放置木头",
+    Desc = "自动放置收集到的木头",
+    Value = false,
+    Callback = function(state)
+        autoFeatures.autoPlace.active = state
+        if state then
+            autoFeatures.autoPlace.connection = task.spawn(function()
+                while autoFeatures.autoPlace.active do
+                    for _, prompt in pairs(workspace:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") and prompt.Name == "PlaceLogProximityPrompt" then
+                            pcall(function() fireproximityprompt(prompt) end)
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        else
+            if autoFeatures.autoPlace.connection then task.cancel(autoFeatures.autoPlace.connection) end
+        end
+    end
+})
+
+autoFeatures.autoRepairBridge = { active = false, connection = nil }
+local function getNearestConstruct()
+    local char = lp.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local root = char.HumanoidRootPart
+    local bridge = workspace:FindFirstChild("Berezina") and workspace.Berezina:FindFirstChild("Modes") and workspace.Berezina.Modes:FindFirstChild("Holdout") and workspace.Berezina.Modes.Holdout:FindFirstChild("Bridge")
+    if not bridge then return nil end
+    local nearest, dist = nil, math.huge
+    for _, section in ipairs(bridge:GetChildren()) do
+        local posts = section:FindFirstChild("Posts")
+        if posts then
+            for _, part in ipairs(posts:GetChildren()) do
+                if part:IsA("BasePart") and part:FindFirstChild("ConstructHealth") then
+                    local d = (part.Position - root.Position).Magnitude
+                    if d < dist then dist = d; nearest = part.ConstructHealth end
+                end
+            end
+        end
+        local beam = section:FindFirstChild("Beam")
+        if beam and beam:FindFirstChild("ConstructHealth") then
+            local d = (beam.Position - root.Position).Magnitude
+            if d < dist then dist = d; nearest = beam.ConstructHealth end
+        end
+        for _, joists in ipairs(section:GetChildren()) do
+            if joists.Name == "Joists" and joists:FindFirstChild("ConstructHealth") then
+                local d = (joists.Position - root.Position).Magnitude
+                if d < dist then dist = d; nearest = joists.ConstructHealth end
+            end
+        end
+    end
+    return nearest
+end
+local function doRepairBridge()
+    local target = getNearestConstruct()
+    if not target then return end
+    local hammer = lp.Backpack:FindFirstChild("Hammer") or lp.Backpack:FindFirstChild("Claw Hammer")
+    if not hammer or not hammer:FindFirstChild("RemoteEvent") then return end
+    hammer.RemoteEvent:FireServer("Repair", target)
+end
+AutoTab:Toggle({
+    Title = "自动修桥",
+    Desc = "自动搭桥",
+    Value = false,
+    Callback = function(state)
+        autoFeatures.autoRepairBridge.active = state
+        if state then
+            autoFeatures.autoRepairBridge.connection = RunService.Heartbeat:Connect(doRepairBridge)
+        else
+            if autoFeatures.autoRepairBridge.connection then autoFeatures.autoRepairBridge.connection:Disconnect() end
+        end
+    end
+})
+
+autoFeatures.autoCollectKaub = { active = false, connection = nil, prompts = {} }
+local function setupKaubAutoCollect()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") then autoFeatures.autoCollectKaub.prompts[descendant] = true end
+    end
+    local descendantAddedConn = workspace.DescendantAdded:Connect(function(desc)
+        if desc:IsA("ProximityPrompt") then autoFeatures.autoCollectKaub.prompts[desc] = true end
+    end)
+    autoFeatures.autoCollectKaub.connection = RunService.Heartbeat:Connect(function()
+        if not autoFeatures.autoCollectKaub.active or not lp.Character then return end
+        local hrp = lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        for prompt, _ in pairs(autoFeatures.autoCollectKaub.prompts) do
+            if prompt and prompt.Parent and prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                local part = prompt.Parent
+                if part:IsA("BasePart") and (part.Position - hrp.Position).Magnitude <= prompt.MaxActivationDistance then
+                    fireproximityprompt(prompt)
+                end
+            else
+                autoFeatures.autoCollectKaub.prompts[prompt] = nil
+            end
+        end
+    end)
+    return descendantAddedConn
+end
+AutoTab:Toggle({
+    Title = "自动收集",
+    Desc = "自动收集物品",
+    Value = false,
+    Callback = function(state)
+        autoFeatures.autoCollectKaub.active = state
+        if state then
+            local conn = setupKaubAutoCollect()
+            autoFeatures.autoCollectKaub.descendantConn = conn
+        else
+            if autoFeatures.autoCollectKaub.connection then autoFeatures.autoCollectKaub.connection:Disconnect() end
+            if autoFeatures.autoCollectKaub.descendantConn then autoFeatures.autoCollectKaub.descendantConn:Disconnect() end
+            autoFeatures.autoCollectKaub.prompts = {}
+        end
+    end
+})
+
+AutoTab:Toggle({
+    Title = "自动开门",
+    Desc = "自动开门",
+    Value = false,
+    Callback = function(state)
+        autoDoorEnabled = state
+        if state then
+            if autoDoorThread then task.cancel(autoDoorThread) end
+            autoDoorThread = task.spawn(autoDoorLoop)
+        else
+            if autoDoorThread then task.cancel(autoDoorThread); autoDoorThread = nil end
+            processingDoors = {}
+        end
+    end
+})
+
+local FlyTab = FeatureSection:Tab({ Title = "飞行", Icon = "rocket" })
+
+FlyTab:Button({
+    Title = "飞行-无相机锁定",
+    Icon = "plane",
+    Callback = function()
+        if pgui:FindFirstChild("OriginalFlightUI") then pgui.OriginalFlightUI:Destroy() end
+        task.wait(0.1)
+
+        local UI_BG = Color3.fromRGB(200, 230, 255)
+        local BTN_OFF = Color3.fromRGB(150, 200, 255)
+        local BTN_ON = Color3.fromRGB(70, 150, 255)
+        local DESTROY_BTN = Color3.fromRGB(110, 180, 255)
+        local TEXT_COLOR = Color3.fromRGB(0, 60, 120)
+        local SPEED_BG = Color3.fromRGB(180, 220, 255)
+
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "OriginalFlightUI"
+        ScreenGui.Parent = pgui
+        ScreenGui.ResetOnSpawn = false
+        ScreenGui.DisplayOrder = 999
+
+        local MainFrame = Instance.new("Frame")
+        MainFrame.Size = UDim2.new(0, 150, 0, 130)
+        MainFrame.Position = UDim2.new(0.5, -75, 0.3, 0)
+        MainFrame.BackgroundColor3 = UI_BG
+        MainFrame.BackgroundTransparency = 0.4
+        MainFrame.Draggable = true
+        MainFrame.Active = true
+        MainFrame.Parent = ScreenGui
+
+        Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+        local stroke = Instance.new("UIStroke", MainFrame)
+        stroke.Color = Color3.fromRGB(120, 200, 255)
+        stroke.Thickness = 3
+        stroke.Transparency = 0.1
+
+        local Title = Instance.new("TextLabel", MainFrame)
+        Title.Size = UDim2.new(1,0,0,20)
+        Title.BackgroundTransparency = 1
+        Title.Text = "飞行-无相机锁定"
+        Title.TextColor3 = TEXT_COLOR
+        Title.TextSize = 12
+        Title.Font = Enum.Font.GothamBold
+
+        local Tip = Instance.new("TextLabel", MainFrame)
+        Tip.Size = UDim2.new(1,0,0,14)
+        Tip.Position = UDim2.new(0,0,0,20)
+        Tip.BackgroundTransparency = 1
+        Tip.Text = "[无穿墙]"
+        Tip.TextColor3 = Color3.new(0.9,0,0)
+        Tip.TextSize = 8
+
+        local SpeedInput = Instance.new("TextBox", MainFrame)
+        SpeedInput.Size = UDim2.new(0,120,0,24)
+        SpeedInput.Position = UDim2.new(0.5,-60,0, 40)
+        SpeedInput.BackgroundColor3 = SPEED_BG
+        SpeedInput.BackgroundTransparency = 0.3
+        SpeedInput.Text = "40"
+        SpeedInput.TextColor3 = TEXT_COLOR
+        SpeedInput.TextSize = 11
+        Instance.new("UICorner", SpeedInput).CornerRadius = UDim.new(0,7)
+
+        local FlyBtn = Instance.new("TextButton", MainFrame)
+        FlyBtn.Size = UDim2.new(0,120,0,26)
+        FlyBtn.Position = UDim2.new(0.5,-60,0, 75)
+        FlyBtn.BackgroundColor3 = BTN_OFF
+        FlyBtn.BackgroundTransparency = 0.3
+        FlyBtn.Text = "飞行"
+        FlyBtn.TextColor3 = TEXT_COLOR
+        FlyBtn.TextSize = 11
+        Instance.new("UICorner", FlyBtn).CornerRadius = UDim.new(0,8)
+
+        local DestroyUI = Instance.new("TextButton", MainFrame)
+        DestroyUI.Size = UDim2.new(0,120,0,26)
+        DestroyUI.Position = UDim2.new(0.5,-60,0, 110)
+        DestroyUI.BackgroundColor3 = DESTROY_BTN
+        DestroyUI.BackgroundTransparency = 0.3
+        DestroyUI.Text = "销毁UI"
+        DestroyUI.TextColor3 = TEXT_COLOR
+        DestroyUI.TextSize = 11
+        Instance.new("UICorner", DestroyUI).CornerRadius = UDim.new(0,8)
+
+        local dragging, dragStart, startPos
+        MainFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = MainFrame.Position
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - dragStart
+                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+        end)
+
+        SpeedInput.FocusLost:Connect(function()
+            local val = tonumber(SpeedInput.Text)
+            if val then flySpeed_orig = math.clamp(val, 10, 100) else flySpeed_orig = 40 end
+            SpeedInput.Text = tostring(flySpeed_orig)
+        end)
+
+        FlyBtn.MouseButton1Click:Connect(function()
+            if isFlying_orig then
+                stopFly_orig()
+                FlyBtn.Text = "飞行"
+                FlyBtn.BackgroundColor3 = BTN_OFF
+            else
+                startFly_orig()
+                FlyBtn.Text = "飞行开"
+                FlyBtn.BackgroundColor3 = BTN_ON
+            end
+        end)
+
+        DestroyUI.MouseButton1Click:Connect(function()
+            stopFly_orig()
+            ScreenGui:Destroy()
+        end)
+
+        MainFrame.Size = UDim2.new(0,0,0,0)
+        MainFrame:TweenSize(UDim2.new(0,150,0,130), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.4, true)
+    end
+})
+
+FlyTab:Button({
+    Title = "飞行-优化",
+    Icon = "rocket",
+    Callback = function()
+        if pgui:FindFirstChild("NewFlightUI") then pgui.NewFlightUI:Destroy() end
+        task.wait(0.1)
+
+        local UI_BG = Color3.fromRGB(200, 230, 255)
+        local BTN_OFF = Color3.fromRGB(150, 200, 255)
+        local BTN_ON = Color3.fromRGB(70, 150, 255)
+        local DESTROY_BTN = Color3.fromRGB(110, 180, 255)
+        local TEXT_COLOR = Color3.fromRGB(0, 60, 120)
+        local SPEED_BG = Color3.fromRGB(180, 220, 255)
+
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "NewFlightUI"
+        ScreenGui.Parent = pgui
+        ScreenGui.ResetOnSpawn = false
+        ScreenGui.DisplayOrder = 999
+
+        local MainFrame = Instance.new("Frame")
+        MainFrame.Size = UDim2.new(0, 180, 0, 180)
+        MainFrame.Position = UDim2.new(0.5, -90, 0.3, 0)
+        MainFrame.BackgroundColor3 = UI_BG
+        MainFrame.BackgroundTransparency = 0.4
+        MainFrame.Draggable = true
+        MainFrame.Active = true
+        MainFrame.Parent = ScreenGui
+
+        Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+        local stroke = Instance.new("UIStroke", MainFrame)
+        stroke.Color = Color3.fromRGB(120, 200, 255)
+        stroke.Thickness = 3
+        stroke.Transparency = 0.1
+
+        local Title = Instance.new("TextLabel", MainFrame)
+        Title.Size = UDim2.new(1,0,0,20)
+        Title.BackgroundTransparency = 1
+        Title.Text = "飞行-优化"
+        Title.TextColor3 = TEXT_COLOR
+        Title.TextSize = 12
+        Title.Font = Enum.Font.GothamBold
+
+        local SpeedInput = Instance.new("TextBox", MainFrame)
+        SpeedInput.Size = UDim2.new(0,120,0,24)
+        SpeedInput.Position = UDim2.new(0.5,-60,0, 30)
+        SpeedInput.BackgroundColor3 = SPEED_BG
+        SpeedInput.BackgroundTransparency = 0.3
+        SpeedInput.Text = "40"
+        SpeedInput.TextColor3 = TEXT_COLOR
+        SpeedInput.TextSize = 11
+        Instance.new("UICorner", SpeedInput).CornerRadius = UDim.new(0,7)
+
+        local WallhackBtn = Instance.new("TextButton", MainFrame)
+        WallhackBtn.Size = UDim2.new(0,120,0,26)
+        WallhackBtn.Position = UDim2.new(0.5,-60,0, 65)
+        WallhackBtn.BackgroundColor3 = BTN_OFF
+        WallhackBtn.BackgroundTransparency = 0.3
+        WallhackBtn.Text = "穿墙模式: 关闭"
+        WallhackBtn.TextColor3 = TEXT_COLOR
+        WallhackBtn.TextSize = 11
+        Instance.new("UICorner", WallhackBtn).CornerRadius = UDim.new(0,8)
+
+        local FlyBtn = Instance.new("TextButton", MainFrame)
+        FlyBtn.Size = UDim2.new(0,120,0,26)
+        FlyBtn.Position = UDim2.new(0.5,-60,0, 100)
+        FlyBtn.BackgroundColor3 = BTN_OFF
+        FlyBtn.BackgroundTransparency = 0.3
+        FlyBtn.Text = "飞行"
+        FlyBtn.TextColor3 = TEXT_COLOR
+        FlyBtn.TextSize = 11
+        Instance.new("UICorner", FlyBtn).CornerRadius = UDim.new(0,8)
+
+        local DestroyUI = Instance.new("TextButton", MainFrame)
+        DestroyUI.Size = UDim2.new(0,120,0,26)
+        DestroyUI.Position = UDim2.new(0.5,-60,0, 135)
+        DestroyUI.BackgroundColor3 = DESTROY_BTN
+        DestroyUI.BackgroundTransparency = 0.3
+        DestroyUI.Text = "销毁UI"
+        DestroyUI.TextColor3 = TEXT_COLOR
+        DestroyUI.TextSize = 11
+        Instance.new("UICorner", DestroyUI).CornerRadius = UDim.new(0,8)
+
+        local dragging, dragStart, startPos
+        MainFrame.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = MainFrame.Position
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Position - dragStart
+                MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+        end)
+
+        SpeedInput.FocusLost:Connect(function()
+            local val = tonumber(SpeedInput.Text)
+            if val then flySpeed_new = math.clamp(val, 10, 100) else flySpeed_new = 40 end
+            SpeedInput.Text = tostring(flySpeed_new)
+        end)
+
+        WallhackBtn.MouseButton1Click:Connect(function()
+            isWallhack_new = not isWallhack_new
+            WallhackBtn.Text = "穿墙模式: " .. (isWallhack_new and "开启" or "关闭")
+            WallhackBtn.BackgroundColor3 = isWallhack_new and BTN_ON or BTN_OFF
+            if isFlying_new then
+                stopFly_new()
+                task.wait(0.05)
+                startFly_new()
+            else
+                applyWallhackState_new()
+            end
+        end)
+
+        FlyBtn.MouseButton1Click:Connect(function()
+            if isFlying_new then
+                stopFly_new()
+                FlyBtn.Text = "飞行"
+                FlyBtn.BackgroundColor3 = BTN_OFF
+            else
+                startFly_new()
+                FlyBtn.Text = "飞行开"
+                FlyBtn.BackgroundColor3 = BTN_ON
+            end
+        end)
+
+        DestroyUI.MouseButton1Click:Connect(function()
+            stopFly_new()
+            applyWallhackState_new()
+            ScreenGui:Destroy()
+        end)
+
+        MainFrame.Size = UDim2.new(0,0,0,0)
+        MainFrame:TweenSize(UDim2.new(0,180,0,180), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.4, true)
+    end
+})
+
+local BrushTab = FeatureSection:Tab({ Title = "获取", Icon = "gift" })
+local function getPurchaseEvent()
+    local rs = game:GetService("ReplicatedStorage")
+    local events = rs:FindFirstChild("Events")
+    if not events then return nil end
+    local customize = events:FindFirstChild("Customize")
+    if not customize then return nil end
+    return customize:FindFirstChild("PurchaseEvent")
+end
+local function getEquipWeaponEvent()
+    local rs = game:GetService("ReplicatedStorage")
+    local events = rs:FindFirstChild("Events")
+    if not events then return nil end
+    return events:FindFirstChild("EquipWeapon")
+end
+BrushTab:Button({
+    Title = "获取法棍 (Baguette)",
+    Icon = "gift",
+    Callback = function()
+        local purchase = getPurchaseEvent()
+        if purchase then purchase:FireServer("Baguette"); WindUI:Notify({ Title = "刷物", Content = "已获取法棍", Duration = 2 }) end
+    end
+})
+BrushTab:Button({
+    Title = "获取吸血鬼刀 (Voivode)",
+    Icon = "gift",
+    Callback = function()
+        local purchase = getPurchaseEvent()
+        if purchase then purchase:FireServer("Voivode"); WindUI:Notify({ Title = "刷物", Content = "已获取吸血鬼刀", Duration = 2 }) end
+    end
+})
+BrushTab:Button({
+    Title = "获取铁桩 (Iron Stake)",
+    Icon = "gift",
+    Callback = function()
+        local purchase = getPurchaseEvent()
+        if purchase then purchase:FireServer("Iron Stake"); WindUI:Notify({ Title = "刷物", Content = "已获取铁桩", Duration = 2 }) end
+    end
+})
+BrushTab:Button({
+    Title = "获取所有武器并装备",
+    Icon = "star",
+    Callback = function()
+        local purchase = getPurchaseEvent()
+        local equip = getEquipWeaponEvent()
+        if not purchase or not equip then
+            WindUI:Notify({ Title = "错误", Content = "出现未知错误", Duration = 2, Type = "error" })
+            return
+        end
+        purchase:FireServer("Baguette")
+        purchase:FireServer("Voivode")
+        purchase:FireServer("Iron Stake")
+        task.wait(0.2)
+        local classes = {"LineInfantry", "Officer", "Seaman", "Musician", "Sapper", "Surgeon", "Chaplain"}
+        for _, class in ipairs(classes) do
+            if class == "Sapper" then equip:FireServer(class, "Baguette", false)
+            elseif class == "Chaplain" then equip:FireServer(class, "Iron Stake", false)
+            else equip:FireServer(class, "Voivode", false) end
+        end
+        WindUI:Notify({ Title = "刷物", Content = "已获取所有武器并装备", Duration = 3 })
+    end
+})
+
+local KillSection = Window:Section({ Title = "杀戮光环", Opened = true })
+local KillTab = KillSection:Tab({ Title = "光环", Icon = "zap" })
+
+local attackBarrelEnabled = false
+
+local ATTACK_RANGE = 45
+local ATTACK_SPEED = 2
+local ATTACK_MULTIPLIER = 1
+local DELAY_COMPENSATION = 0.005
+
+local auraEnabled = false
+local attackThread = nil
+local attackIndex = 1
+
+local function getHeldMelee()
+    local character = lp.Character
+    if not character then return nil end
+    for _, item in pairs(character:GetChildren()) do
+        if item:IsA("Tool") and item:GetAttribute("Melee") then
+            return item
+        end
+    end
+    return nil
+end
+
+local function distanceToZombie(zombie)
+    local character = lp.Character
+    if not character then return math.huge end
+    local myRoot = character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return math.huge end
+    local targetRoot = zombie:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return math.huge end
+    return (targetRoot.Position - myRoot.Position).Magnitude
+end
+
+local function attackZombieOnce(zombie, weapon)
+    if not weapon then return false end
+    if distanceToZombie(zombie) > ATTACK_RANGE then return false end
+
+    local remote = weapon:FindFirstChild("RemoteEvent")
+    if not remote then return false end
+
+    local head = zombie:FindFirstChild("Head")
+    if not head then return false end
+
+    if weapon.Name == "Axe" and zombie:FindFirstChild("State") and zombie.State.Value ~= "Stunned" then
+        remote:FireServer("BraceBlock")
+        remote:FireServer("StopBraceBlock")
+        remote:FireServer("FeedbackStun", zombie, zombie.HumanoidRootPart.Position)
+    end
+
+    remote:FireServer("Swing", "Side")
+    remote:FireServer("HitZombie", zombie, head.Position, true)
+    return true
+end
+
+local function attackLoop()
+    while auraEnabled do
+        local character = lp.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local weapon = getHeldMelee()
+                if weapon then
+                    local zombiesInRange = {}
+                    local zombiesFolder = workspace:FindFirstChild("Zombies")
+                    if zombiesFolder then
+                        for _, zombie in pairs(zombiesFolder:GetChildren()) do
+                            if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+                                if not attackBarrelEnabled and zombie:GetAttribute("Type") == "Barrel" then
+                                    continue
+                                end
+                                if zombie:FindFirstChild("State") and zombie.State.Value == "Spawn" then
+                                    continue
+                                end
+                                if distanceToZombie(zombie) <= ATTACK_RANGE then
+                                    table.insert(zombiesInRange, zombie)
+                                end
+                            end
+                        end
+                    end
+
+                    local zombieCount = #zombiesInRange
+                    if zombieCount > 0 then
+                        if attackIndex > zombieCount then
+                            attackIndex = 1
+                        end
+
+                        local attackCount = math.min(ATTACK_SPEED, zombieCount)
+                        local attacked = 0
+                        local i = attackIndex
+
+                        while attacked < attackCount do
+                            local zombie = zombiesInRange[i]
+                            if zombie then
+                                for _ = 1, ATTACK_MULTIPLIER do
+                                    attackZombieOnce(zombie, weapon)
+                                end
+                                attacked = attacked + 1
+                            end
+                            i = i + 1
+                            if i > zombieCount then
+                                i = 1
+                            end
+                        end
+
+                        attackIndex = i
+                    else
+                        attackIndex = 1
+                    end
+                end
+            end
+        end
+        task.wait(DELAY_COMPENSATION)
+    end
+end
+
+local function startAura()
+    if attackThread then return end
+    auraEnabled = true
+    attackIndex = 1
+    attackThread = task.spawn(attackLoop)
+end
+
+local function stopAura()
+    auraEnabled = false
+    if attackThread then
+        task.cancel(attackThread)
+        attackThread = nil
+    end
+    attackIndex = 1
+end
+
+KillTab:Toggle({
+    Title = "杀戮光环-高频（防封）",
+    Desc = "高频杀戮体验极致爽感（防封）",
+    Value = false,
+    Callback = function(state)
+        if state then
+            startAura()
+        else
+            stopAura()
+        end
+    end
+})
+
+local killWaveEnabled = false
+local killWaveLoop = nil
+local WAVE_ATTACK_INTERVAL = 0.8
+local WAVE_MAX_TARGETS = 4
+
+local function waveLoopFunc()
+    while killWaveEnabled do
+        local startTime = tick()
+        local character = lp.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local weapon = getHeldMelee()
+                if weapon then
+                    local zombiesInRange = {}
+                    local zombiesFolder = workspace:FindFirstChild("Zombies")
+                    if zombiesFolder then
+                        for _, zombie in pairs(zombiesFolder:GetChildren()) do
+                            if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+                                if not attackBarrelEnabled and zombie:GetAttribute("Type") == "Barrel" then
+                                    continue
+                                end
+                                if zombie.State and zombie.State.Value == "Spawn" then
+                                    continue
+                                end
+                                if distanceToZombie(zombie) <= ATTACK_RANGE then
+                                    table.insert(zombiesInRange, zombie)
+                                end
+                            end
+                        end
+                    end
+                    local attackCount = math.min(WAVE_MAX_TARGETS, #zombiesInRange)
+                    for i = 1, attackCount do
+                        attackZombieOnce(zombiesInRange[i], weapon)
+                    end
+                end
+            end
+        end
+        local elapsed = tick() - startTime
+        local waitTime = WAVE_ATTACK_INTERVAL - elapsed
+        if waitTime > 0 then
+            task.wait(waitTime)
+        end
+    end
+end
+
+local function startWaveMode()
+    if killWaveLoop then
+        task.cancel(killWaveLoop)
+        killWaveLoop = nil
+    end
+    if killWaveEnabled then
+        killWaveLoop = task.spawn(waveLoopFunc)
+    end
+end
+
+KillTab:Toggle({
+    Title = "杀戮光环-无尽专用",
+    Desc = "无尽专用防卡, 就是杀戮太慢了",
+    Value = false,
+    Callback = function(state)
+        killWaveEnabled = state
+        startWaveMode()
+    end
+})
+
+local killAnimEnabled = false
+local killAnimConnection = nil
+local ANIM_ATTACK_RANGE = 30
+local ANIMATION_CONFIGS = {
+    { AnimationId = "rbxassetid://12591932646", ActivationDelay = 0.2 },
+    { AnimationId = "rbxassetid://12591945044", ActivationDelay = 0.27 },
+    { AnimationId = "rbxassetid://12591944118", ActivationDelay = 0.4 },
+    { AnimationId = "rbxassetid://12591941810", ActivationDelay = 0.2 },
+    { AnimationId = "rbxassetid://12638403582", ActivationDelay = 0.65 },
+    { AnimationId = "rbxassetid://114385794993502", ActivationDelay = 0.65 },
+    { AnimationId = "rbxassetid://12638409326", ActivationDelay = 0.74 }
+}
+
+local function performSingleAnimAttack()
+    local character = lp.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    local weapon = getHeldMelee()
+    if not weapon then return end
+    local zombiesInRange = {}
+    local zombiesFolder = workspace:FindFirstChild("Zombies")
+    if zombiesFolder then
+        for _, zombie in pairs(zombiesFolder:GetChildren()) do
+            if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+                if not attackBarrelEnabled and zombie:GetAttribute("Type") == "Barrel" then
+                    continue
+                end
+                if zombie.State and zombie.State.Value == "Spawn" then
+                    continue
+                end
+                if distanceToZombie(zombie) <= ANIM_ATTACK_RANGE then
+                    table.insert(zombiesInRange, zombie)
+                end
+            end
+        end
+    end
+    for _, zombie in ipairs(zombiesInRange) do
+        attackZombieOnce(zombie, weapon)
+    end
+end
+
+local function onKillAnimationPlayed(animationTrack)
+    if not killAnimEnabled then return end
+    local animId = animationTrack.Animation.AnimationId
+    for _, config in ipairs(ANIMATION_CONFIGS) do
+        if config.AnimationId == animId then
+            task.delay(config.ActivationDelay, function()
+                if killAnimEnabled then
+                    performSingleAnimAttack()
+                end
+            end)
+            break
+        end
+    end
+end
+
+local function updateKillAnimConnection()
+    if killAnimEnabled then
+        if killAnimConnection then return end
+        local char = lp.Character
+        if not char then
+            lp.CharacterAdded:Connect(function()
+                task.wait(1)
+                updateKillAnimConnection()
+            end)
+            return
+        end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            killAnimConnection = humanoid.AnimationPlayed:Connect(onKillAnimationPlayed)
+        end
+    else
+        if killAnimConnection then
+            killAnimConnection:Disconnect()
+            killAnimConnection = nil
+        end
+    end
+end
+
+lp.CharacterAdded:Connect(updateKillAnimConnection)
+
+KillTab:Toggle({
+    Title = "杀戮光环-手动",
+    Desc = "挥刀时开启杀戮光环（稳定防封）",
+    Value = false,
+    Callback = function(state)
+        killAnimEnabled = state
+        updateKillAnimConnection()
+    end
+})
+
+KillTab:Toggle({
+    Title = "攻击自爆",
+    Desc = "开启后攻击自爆",
+    Value = false,
+    Callback = function(state)
+        attackBarrelEnabled = state
+    end
+})
+
+-- ==================== 透视功能（僵尸透视 + 玩家透视） ====================
+local ESP_Section = Window:Section({ Title = "透视", Opened = true })
+
+-- 僵尸透视 Tab
+local ESPTab = ESP_Section:Tab({ Title = "僵尸透视", Icon = "eye" })
+
+local RANGE = 200
+
+local function lightenColor(color, factor)
+    factor = factor or 0.5
+    return Color3.new(
+        color.R + (1 - color.R) * factor,
+        color.G + (1 - color.G) * factor,
+        color.B + (1 - color.B) * factor
+    )
+end
+
+local ZOMBIE_TYPES = {
+    Axe    = { name = "斧头僵尸", color = Color3.fromRGB(180, 0, 250), highlightColor = lightenColor(Color3.fromRGB(180, 0, 250)), part = "Axe" },
+    Eye    = { name = "红眼",      color = Color3.fromRGB(255, 50, 50),  highlightColor = lightenColor(Color3.fromRGB(255, 50, 50)),  part = "Eye" },
+    Sword  = { name = "胸甲骑兵",  color = Color3.fromRGB(255, 0, 255),  highlightColor = lightenColor(Color3.fromRGB(255, 0, 255)),  part = "Sword" },
+    Barrel = { name = "自爆",      color = Color3.fromRGB(250, 250, 0),  highlightColor = lightenColor(Color3.fromRGB(250, 250, 0)),  part = "Barrel" },
+    FTorso = { name = "提灯人",    color = Color3.fromRGB(255, 120, 0),  highlightColor = lightenColor(Color3.fromRGB(255, 120, 0)),  part = "FTorso" },
+    Normal = { name = "普通僵尸",  color = Color3.fromRGB(144, 238, 144), highlightColor = Color3.fromRGB(144, 238, 144), part = nil }
+}
+
+local espEnabled = {
+    Axe = false, Eye = false, Sword = false, Barrel = false, FTorso = false, Normal = false
+}
+
+local zombieEffects = {}
+
+local function getZombieTypeKey(zombie)
+    for typeKey, config in pairs(ZOMBIE_TYPES) do
+        if config.part and zombie:FindFirstChild(config.part) then
+            return typeKey
+        end
+    end
+    return "Normal"
+end
+
+local function createTag(zombie, typeKey)
+    local config = ZOMBIE_TYPES[typeKey]
+    if not config then return nil end
+    local attachPart = zombie.PrimaryPart or zombie:FindFirstChild("Head") or zombie:FindFirstChild("HumanoidRootPart")
+    if not attachPart then return nil end
+    local tag = Instance.new("BillboardGui")
+    tag.Size = UDim2.new(0, 120, 0, 30)
+    tag.StudsOffset = Vector3.new(0, 2.5, 0)
+    tag.AlwaysOnTop = true
+    tag.Adornee = attachPart
+    tag.Parent = zombie
+    local label = Instance.new("TextLabel")
+    label.Text = config.name
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = config.color
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextStrokeTransparency = 0.5
+    label.Parent = tag
+    return tag
+end
+
+local function createHighlight(zombie, color)
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.FillTransparency = 0.7
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0.3
+    hl.Adornee = zombie
+    hl.Parent = zombie
+    return hl
+end
+
+local function removeZombieEffects(zombie)
+    local effects = zombieEffects[zombie]
+    if effects then
+        if effects.tag then effects.tag:Destroy() end
+        if effects.highlight then effects.highlight:Destroy() end
+        zombieEffects[zombie] = nil
+    end
+end
+
+local function clearAllEffects()
+    for zombie, _ in pairs(zombieEffects) do
+        removeZombieEffects(zombie)
+    end
+end
+
+local function updateAllEffects()
+    local anyEnabled = false
+    for _, v in pairs(espEnabled) do
+        if v then anyEnabled = true; break end
+    end
+    if not anyEnabled then
+        clearAllEffects()
+        return
+    end
+
+    local char = lp.Character
+    local rootPart = char and char:FindFirstChild("HumanoidRootPart")
+    local playerPos = rootPart and rootPart.Position
+    if not playerPos then
+        clearAllEffects()
+        return
+    end
+
+    for zombie, _ in pairs(zombieEffects) do
+        if not zombie.Parent then
+            removeZombieEffects(zombie)
+        end
+    end
+
+    local cameraFolder = workspace:FindFirstChild("Camera")
+    if not cameraFolder then return end
+
+    local zombies = cameraFolder:GetDescendants()
+    for i = 1, #zombies do
+        local zombie = zombies[i]
+        if zombie:IsA("Model") and zombie.Name:find("Zombie") then
+            local root = zombie:FindFirstChild("HumanoidRootPart") or zombie:FindFirstChild("Head") or zombie:FindFirstChild("Torso")
+            if root then
+                local dist = (root.Position - playerPos).Magnitude
+                local typeKey = getZombieTypeKey(zombie)
+                local enabled = espEnabled[typeKey]
+
+                if enabled and dist <= RANGE then
+                    if not zombieEffects[zombie] then
+                        local config = ZOMBIE_TYPES[typeKey]
+                        local tag = createTag(zombie, typeKey)
+                        local highlight = createHighlight(zombie, config.highlightColor)
+                        zombieEffects[zombie] = { tag = tag, highlight = highlight, typeKey = typeKey }
+                    end
+                else
+                    if zombieEffects[zombie] then
+                        removeZombieEffects(zombie)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local lastUpdate = 0
+local heartbeatConn = RunService.Heartbeat:Connect(function()
+    local now = tick()
+    if now - lastUpdate >= 0.2 then
+        lastUpdate = now
+        updateAllEffects()
+    end
+end)
+
+lp.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    updateAllEffects()
+end)
+
+ESPTab:Toggle({
+    Title = "透视斧头僵尸",
+    Value = false,
+    Callback = function(state)
+        espEnabled.Axe = state
+        updateAllEffects()
+    end
+})
+
+ESPTab:Toggle({
+    Title = "透视红眼",
+    Value = false,
+    Callback = function(state)
+        espEnabled.Eye = state
+        updateAllEffects()
+    end
+})
+
+ESPTab:Toggle({
+    Title = "透视胸甲骑兵",
+    Value = false,
+    Callback = function(state)
+        espEnabled.Sword = state
+        updateAllEffects()
+    end
+})
+
+ESPTab:Toggle({
+    Title = "透视自爆",
+    Value = false,
+    Callback = function(state)
+        espEnabled.Barrel = state
+        updateAllEffects()
+    end
+})
+
+ESPTab:Toggle({
+    Title = "透视提灯人",
+    Value = false,
+    Callback = function(state)
+        espEnabled.FTorso = state
+        updateAllEffects()
+    end
+})
+
+ESPTab:Toggle({
+    Title = "透视普通僵尸",
+    Value = false,
+    Callback = function(state)
+        espEnabled.Normal = state
+        updateAllEffects()
+    end
+})
+
+-- ==================== 新增玩家透视 Tab ====================
+local PlayerESPTab = ESP_Section:Tab({ Title = "玩家透视", Icon = "eye" })
+
+-- 玩家透视相关变量
+local playerHighlights = {}
+local playerNameTags = {}
+local espPlayerEnabled = false          -- 玩家透视总开关
+local espShowNames = false               -- 是否显示玩家名称
+local espTeamCheckPlayer = false         -- 队伍检测开关（默认关闭，透视所有玩家）
+
+-- 队伍检测函数
+local function getPlayerTeam(player)
+    if player.Team then return player.Team end
+    local teamAttr = player:GetAttribute("Team")
+    if teamAttr then return teamAttr end
+    local char = player.Character
+    if char then
+        local teamTag = char:FindFirstChild("TeamTag") or char:FindFirstChild("Team")
+        if teamTag then return teamTag.Value end
+    end
+    return nil
+end
+
+local function isSameTeam(player)
+    local myTeam = getPlayerTeam(lp)
+    local theirTeam = getPlayerTeam(player)
+    if myTeam and theirTeam then
+        return myTeam == theirTeam
+    end
+    return false
+end
+
+-- 更新单个玩家的透视状态
+local function updatePlayerESP(player)
+    if not espPlayerEnabled then
+        if playerHighlights[player] then playerHighlights[player]:Destroy(); playerHighlights[player] = nil end
+        if playerNameTags[player] then playerNameTags[player]:Destroy(); playerNameTags[player] = nil end
+        return
+    end
+    
+    local shouldShow = true
+    if espTeamCheckPlayer then
+        shouldShow = not isSameTeam(player)   -- 队伍检测开启时，只显示敌人
+    end
+    if player == lp then shouldShow = false end
+    
+    if shouldShow then
+        local char = player.Character
+        if char and char.Parent then
+            -- 高亮
+            if not playerHighlights[player] then
+                local hl = Instance.new("Highlight")
+                hl.Adornee = char
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.FillTransparency = 0.4
+                hl.OutlineTransparency = 0.4
+                hl.FillColor = Color3.fromRGB(255, 255, 255)
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.Parent = char
+                playerHighlights[player] = hl
+            end
+            -- 名字标签（仅在 espShowNames 开启时创建）
+            if espShowNames then
+                if not playerNameTags[player] then
+                    local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+                    if head then
+                        local billboard = Instance.new("BillboardGui")
+                        billboard.Name = "PlayerNameTag"
+                        billboard.Size = UDim2.new(0, 200, 0, 40)
+                        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                        billboard.AlwaysOnTop = true
+                        billboard.Adornee = head
+                        billboard.MaxDistance = 100
+                        billboard.Parent = char
+                        local label = Instance.new("TextLabel")
+                        label.Size = UDim2.new(1, 0, 1, 0)
+                        label.BackgroundTransparency = 1
+                        label.Text = player.Name
+                        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        label.TextSize = 16
+                        label.Font = Enum.Font.GothamBold
+                        label.TextStrokeTransparency = 0.2
+                        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                        label.Parent = billboard
+                        playerNameTags[player] = billboard
+                    end
+                end
+            else
+                -- 如果关闭显示名称，删除已存在的标签
+                if playerNameTags[player] then
+                    playerNameTags[player]:Destroy()
+                    playerNameTags[player] = nil
+                end
+            end
+        else
+            if playerHighlights[player] then playerHighlights[player]:Destroy(); playerHighlights[player] = nil end
+            if playerNameTags[player] then playerNameTags[player]:Destroy(); playerNameTags[player] = nil end
+        end
+    else
+        if playerHighlights[player] then playerHighlights[player]:Destroy(); playerHighlights[player] = nil end
+        if playerNameTags[player] then playerNameTags[player]:Destroy(); playerNameTags[player] = nil end
+    end
+end
+
+-- 刷新所有玩家的透视
+local function refreshAllPlayersESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        updatePlayerESP(player)
+    end
+end
+
+-- 监听玩家加入/离开/角色变化
+local function setupPlayerESPEvents()
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.2)
+            updatePlayerESP(player)
+        end)
+        player.CharacterRemoving:Connect(function()
+            if playerHighlights[player] then playerHighlights[player]:Destroy(); playerHighlights[player] = nil end
+            if playerNameTags[player] then playerNameTags[player]:Destroy(); playerNameTags[player] = nil end
+        end)
+        updatePlayerESP(player)
+    end)
+    Players.PlayerRemoving:Connect(function(player)
+        if playerHighlights[player] then playerHighlights[player]:Destroy(); playerHighlights[player] = nil end
+        if playerNameTags[player] then playerNameTags[player]:Destroy(); playerNameTags[player] = nil end
+    end)
+    lp.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        refreshAllPlayersESP()
+    end)
+end
+
+-- 启动玩家透视事件监听
+setupPlayerESPEvents()
+
+-- 玩家透视 UI 开关（按顺序：启用玩家透视 -> 显示玩家名称 -> 队伍检测）
+PlayerESPTab:Toggle({
+    Title = "启用玩家透视",
+    Desc = "开启后对玩家进行白色高亮透视",
+    Value = false,
+    Callback = function(state)
+        espPlayerEnabled = state
+        refreshAllPlayersESP()
+    end
+})
+
+PlayerESPTab:Toggle({
+    Title = "显示玩家名称",
+    Desc = "开启后显示玩家头顶名字（需开启玩家透视）",
+    Value = false,
+    Callback = function(state)
+        espShowNames = state
+        refreshAllPlayersESP()
+    end
+})
+
+PlayerESPTab:Toggle({
+    Title = "队伍检测（透视）",
+    Desc = "开启后只透视不同队伍的玩家，关闭则透视所有玩家",
+    Value = false,
+    Callback = function(state)
+        espTeamCheckPlayer = state
+        refreshAllPlayersESP()
+    end
+})
+-- ==================== 玩家透视结束 ====================
+
+-- ==================== 职业功能 ====================
+local CareerSection = Window:Section({ Title = "职业功能", Opened = true })
+local EngineerTab = CareerSection:Tab({ Title = "工兵", Icon = "tool" })
+local OfficerTab = CareerSection:Tab({ Title = "军官/线列", Icon = "shield" })
+local AutoShootTab = CareerSection:Tab({ Title = "自动射击", Icon = "target" })
+
+-- ========== 工兵原有功能 ==========
+local hammerFeature = { active = false, running = false, attackLoop = nil }
+local HAMMER_KEYWORDS = {"hammer", "锤"}
+local HAMMER_ATTACK_MODE = "MOUSE"
+local HAMMER_BUTTON_NAME = "AttackButton"
+local HAMMER_CLICK_POSITION = {X = 0.95, Y = 0.95}
+local HAMMER_PAUSE_WHEN_MOVING = true
+local HAMMER_ATTACK_INTERVAL = 0.5
+local function hasHammer(player)
+    local character = player.Character
+    if not character then return false, nil end
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return false, nil end
+    local toolName = tool.Name:lower()
+    for _, kw in ipairs(HAMMER_KEYWORDS) do
+        if toolName:find(kw:lower()) then return true, tool.Name end
+    end
+    return false, nil
+end
+local function findAttackButton()
+    local playerGui = lp:WaitForChild("PlayerGui")
+    for _, gui in ipairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            local btn = gui:FindFirstChild(HAMMER_BUTTON_NAME, true)
+            if btn and (btn:IsA("TextButton") or btn:IsA("ImageButton")) then return btn end
+        end
+    end
+    local coreGui = game:GetService("CoreGui")
+    for _, gui in ipairs(coreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            local btn = gui:FindFirstChild(HAMMER_BUTTON_NAME, true)
+            if btn and (btn:IsA("TextButton") or btn:IsA("ImageButton")) then return btn end
+        end
+    end
+    return nil
+end
+local function isPlayerMoving()
+    local character = lp.Character
+    if not character then return false end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    return humanoid.MoveDirection.Magnitude > 0.1
+end
+local function triggerHammerAttack()
+    if not hammerFeature.active or not hammerFeature.running then return end
+    if HAMMER_ATTACK_MODE == "BUTTON" then
+        local btn = findAttackButton()
+        if btn and btn.Parent then btn:Click() end
+    elseif HAMMER_ATTACK_MODE == "MOUSE" then
+        if HAMMER_PAUSE_WHEN_MOVING and isPlayerMoving() then return end
+        local camera = workspace.CurrentCamera
+        if camera then
+            local screenSize = camera.ViewportSize
+            local clickX = screenSize.X * HAMMER_CLICK_POSITION.X
+            local clickY = screenSize.Y * HAMMER_CLICK_POSITION.Y
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, nil, 1)
+            task.wait(0.01)
+            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, nil, 1)
+        end
+    end
+end
+local function hammerAttackLoop()
+    while hammerFeature.running and hammerFeature.active do
+        if hasHammer(lp) then triggerHammerAttack() end
+        task.wait(HAMMER_ATTACK_INTERVAL)
+    end
+end
+local function startHammerFeature()
+    hammerFeature.running = true
+    hammerFeature.attackLoop = task.spawn(hammerAttackLoop)
+    WindUI:Notify({ Title = "工兵", Content = "自动修建筑已开启", Duration = 2 })
+end
+local function stopHammerFeature()
+    hammerFeature.running = false
+    if hammerFeature.attackLoop then task.cancel(hammerFeature.attackLoop); hammerFeature.attackLoop = nil end
+    WindUI:Notify({ Title = "工兵", Content = "自动修建筑已关闭", Duration = 2 })
+end
+EngineerTab:Toggle({
+    Title = "自动修建筑",
+    Desc = "自动修复建筑",
+    Value = false,
+    Callback = function(state) hammerFeature.active = state; if state then startHammerFeature() else stopHammerFeature() end end
+})
+
+local engineerRecycleEnabled = false
+local engineerElbowEnabled = false
+local engineerAnimConnection = nil
+local AXE_KEYWORDS = {"axe", "斧"}
+local RECYCLE_ANIMATIONS = {"rbxassetid://114385794993502","rbxassetid://12638403582","rbxassetid://12638409326","rbxassetid://15345113937"}
+local ELBOW_TRIGGER_ANIMATIONS = {"rbxassetid://15345113937"}
+local STUN_RANGE = 50
+local function hasAxe()
+    local char = lp.Character
+    if not char then return false, nil end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return false, nil end
+    local toolName = tool.Name:lower()
+    for _, kw in ipairs(AXE_KEYWORDS) do
+        if toolName:find(kw:lower()) then return true, tool end
+    end
+    return false, nil
+end
+local function recycleAxe()
+    if not engineerRecycleEnabled then return end
+    local char = lp.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local toolName = tool.Name:lower()
+    for _, kw in ipairs(AXE_KEYWORDS) do
+        if toolName:find(kw:lower()) then
+            tool.Parent = lp:FindFirstChild("Backpack")
+            task.wait(0.1)
+            if engineerRecycleEnabled and char.Parent and tool and tool.Parent == lp:FindFirstChild("Backpack") then
+                tool.Parent = char
+            end
+            break
+        end
+    end
+end
+local function stunAroundPlayer()
+    if not engineerElbowEnabled then return end
+    local char = lp.Character
+    if not char then return end
+    local has, tool = hasAxe()
+    if not has then return end
+    local remote = tool:FindFirstChild("RemoteEvent")
+    if not remote then return end
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    local playerPos = rootPart.Position
+    local zombiesFolder = workspace:FindFirstChild("Zombies")
+    if not zombiesFolder then return end
+    for _, zombie in pairs(zombiesFolder:GetChildren()) do
+        if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+            if zombie:GetAttribute("Type") == "Barrel" then continue end
+            local state = zombie:FindFirstChild("State")
+            if state and state.Value == "Spawn" then continue end
+            local zombieRoot = zombie:FindFirstChild("HumanoidRootPart")
+            if not zombieRoot then continue end
+            if (zombieRoot.Position - playerPos).Magnitude <= STUN_RANGE then
+                if zombie:FindFirstChild("State") and zombie.State.Value ~= "Stunned" then
+                    remote:FireServer("BraceBlock")
+                    remote:FireServer("StopBraceBlock")
+                    remote:FireServer("FeedbackStun", zombie, zombieRoot.Position)
+                end
+            end
+        end
+    end
+end
+local function onEngineerAnimationPlayed(animationTrack)
+    if engineerRecycleEnabled then
+        local animId = animationTrack.Animation.AnimationId
+        for _, targetId in ipairs(RECYCLE_ANIMATIONS) do
+            if animId == targetId then
+                local delayTime = (animId == "rbxassetid://15345113937" and 0.2) or (animId == "rbxassetid://12638409326" and 0.9) or 0.85
+                task.delay(delayTime, recycleAxe)
+                break
+            end
+        end
+    end
+    if engineerElbowEnabled then
+        local animId = animationTrack.Animation.AnimationId
+        for _, targetId in ipairs(ELBOW_TRIGGER_ANIMATIONS) do
+            if animId == targetId then stunAroundPlayer(); break end
+        end
+    end
+end
+local function updateEngineerAnimConnection()
+    if engineerRecycleEnabled or engineerElbowEnabled then
+        if engineerAnimConnection then return end
+        local char = lp.Character
+        if not char then
+            lp.CharacterAdded:Connect(function() task.wait(1); updateEngineerAnimConnection() end)
+            return
+        end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then engineerAnimConnection = humanoid.AnimationPlayed:Connect(onEngineerAnimationPlayed) end
+    else
+        if engineerAnimConnection then engineerAnimConnection:Disconnect(); engineerAnimConnection = nil end
+    end
+end
+lp.CharacterAdded:Connect(updateEngineerAnimConnection)
+EngineerTab:Toggle({
+    Title = "攻击回收",
+    Desc = "攻击时自动回收武器来达到移除后摇的效果",
+    Value = false,
+    Callback = function(state) engineerRecycleEnabled = state; updateEngineerAnimConnection() end
+})
+EngineerTab:Toggle({
+    Title = "肘击范围扩大",
+    Desc = "扩大肘击范围",
+    Value = false,
+    Callback = function(state) engineerElbowEnabled = state; updateEngineerAnimConnection() end
+})
+
+local elbowActive = false
+local elbowConnection = nil
+local lastElbowTime = 0
+local function getMelee()
+    if not lp.Character then return nil end
+    for _, item in pairs(lp.Character:GetChildren()) do
+        if item:GetAttribute("Melee") then return item end
+    end
+    for _, item in pairs(lp.Backpack:GetChildren()) do
+        if item:GetAttribute("Melee") then return item end
+    end
+    return nil
+end
+local function executeElbowStun(zombie)
+    local weapon = getMelee()
+    if not weapon or weapon.Name ~= "Axe" then return end
+    if zombie.State.Value == "Stunned" then return end
+    weapon.RemoteEvent:FireServer("BraceBlock")
+    weapon.RemoteEvent:FireServer("StopBraceBlock")
+    weapon.RemoteEvent:FireServer("FeedbackStun", zombie, zombie.HumanoidRootPart.Position)
+end
+EngineerTab:Toggle({
+    Title = "肘击",
+    Desc = "自动肘击僵尸（死亡后需重新开启）",
+    Value = false,
+    Callback = function(state)
+        elbowActive = state
+        if state then
+            elbowConnection = RunService.Heartbeat:Connect(function()
+                if not elbowActive or not lp.Character then return end
+                local now = tick()
+                if now - lastElbowTime < 0.2 then return end
+                lastElbowTime = now
+                local humanoid = lp.Character:FindFirstChildOfClass("Humanoid")
+                if not humanoid or humanoid.Health <= 0 then return end
+                for _, zombie in pairs(workspace.Zombies:GetChildren()) do
+                    if zombie:IsA("Model") and zombie:FindFirstChild("HumanoidRootPart") then
+                        local distance = (zombie.HumanoidRootPart.Position - lp.Character.HumanoidRootPart.Position).Magnitude
+                        if distance <= 45 then executeElbowStun(zombie) end
+                    end
+                end
+            end)
+        else
+            if elbowConnection then elbowConnection:Disconnect(); elbowConnection = nil end
+        end
+    end
+})
+
+-- ========== 军官/线列功能（自动换弹、自动黑枪、自动跳刀） ==========
+-- 这些功能所需的函数（isGun, getShotsLoadedForTool, findRemoteForTool 等）已经在自动射击部分定义过了
+-- 但由于自动射击部分可能依赖这些函数，我们需要确保它们在前面已经定义。
+-- 实际上，在之前的完整脚本中，自动射击相关的函数（如 isGun, getShotsLoadedForTool, findRemoteForTool, aimThenShootGun 等）已经定义过了。
+-- 为了避免重复定义导致错误，这里不再重新定义，而是直接使用已有的函数。
+
+-- 注意：以下变量需要在前面已经声明（autoReloadEnabled, autoBlackGunEnabled, officerAutoJumpEnabled, autoShootBomber, autoShootCuirassier, autoShootRunner, autoShootElectrocutioner, shootingLoopRunning, shootingThread 等）
+-- 由于这些变量在原脚本中已经存在，这里直接使用。
+
+OfficerTab:Toggle({
+    Title = "自动换弹",
+    Desc = "弹药为0时自动装填",
+    Value = false,
+    Callback = function(state)
+        autoReloadEnabled = state
+        if state then
+            local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+            if tool and isGun(tool) and getShotsLoadedForTool(tool) == 0 then
+                local remote = findRemoteForTool(tool)
+                if remote then pcall(function() remote:FireServer("Reload") end) end
+            end
+            monitorCharacterTools(lp.Character)
+            lp.CharacterAdded:Connect(monitorCharacterTools)
+        end
+    end
+})
+
+OfficerTab:Toggle({
+    Title = "自动黑枪",
+    Desc = "自动射击有玩家附近的冒烟自爆（需子弹）",
+    Value = false,
+    Callback = function(state)
+        autoBlackGunEnabled = state
+        updateShootingState()
+    end
+})
+
+OfficerTab:Toggle({
+    Title = "自动跳刀",
+    Desc = "军刀前刺动跳刀",
+    Value = false,
+    Callback = function(state)
+        officerAutoJumpEnabled = state
+        setupJumpListener()
+    end
+})
+
+-- ========== 自动射击 Tab 中的开关（自动射击自爆、胸甲骑兵、红眼、斧头僵尸） ==========
+AutoShootTab:Toggle({
+    Title = "自动射击自爆",
+    Desc = "自动瞄准并射击自爆僵尸",
+    Value = false,
+    Callback = function(state)
+        autoShootBomber = state
+        updateShootingState()
+    end
+})
+
+AutoShootTab:Toggle({
+    Title = "自动射击胸甲骑兵",
+    Desc = "自动瞄准并射击胸甲骑兵",
+    Value = false,
+    Callback = function(state)
+        autoShootCuirassier = state
+        updateShootingState()
+    end
+})
+
+AutoShootTab:Toggle({
+    Title = "自动射击红眼",
+    Desc = "自动瞄准并射击红眼僵尸",
+    Value = false,
+    Callback = function(state)
+        autoShootRunner = state
+        updateShootingState()
+    end
+})
+
+AutoShootTab:Toggle({
+    Title = "自动射击斧头僵尸",
+    Desc = "自动瞄准并射击斧头僵尸",
+    Value = false,
+    Callback = function(state)
+        autoShootElectrocutioner = state
+        updateShootingState()
+    end
+})
+
+-- ========== 注意：自动射击玩家功能未包含在此次添加中，因为用户没有要求添加自动射击玩家。 ==========
+
+Window:OnClose(function()
+    print("窗口已关闭，飞行状态保持不变")
+end)
+
+Window:OnDestroy(function()
+    print("窗口已销毁")
+    isFlying_orig = false
+    clearFlyRes_orig()
+    isFlying_new = false
+    clearFlyRes_new()
+    if heartbeatConn then heartbeatConn:Disconnect() end
+    clearAllEffects()
+    if shootingLoopRunning then stopShooting() end
+    -- 清理玩家透视效果
+    for _, hl in pairs(playerHighlights) do if hl then hl:Destroy() end end
+    for _, tag in pairs(playerNameTags) do if tag then tag:Destroy() end end
+end)
